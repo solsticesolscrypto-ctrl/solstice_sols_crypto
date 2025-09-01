@@ -669,6 +669,35 @@
             }
         };
 
+        window.connectMetaMask = async () => {
+            const walletStatusEl = document.getElementById('dao-wallet-status');
+            const connectBtn = document.getElementById('dao-connect-metamask-btn');
+            const currentLang = document.documentElement.lang;
+
+            if (typeof window.ethereum !== 'undefined') {
+                try {
+                    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+                    const walletAddressMM = accounts[0];
+                    const truncatedAddress = `${walletAddressMM.substring(0, 6)}...${walletAddressMM.substring(walletAddressMM.length - 4)}`;
+                    if(walletStatusEl) {
+                        walletStatusEl.textContent = `MetaMask conectada: ${truncatedAddress}`;
+                        walletStatusEl.classList.remove('text-gray-500');
+                        walletStatusEl.classList.add('text-yellow-400');
+                    }
+                    if(connectBtn) {
+                        connectBtn.textContent = "Conectada";
+                        connectBtn.disabled = true;
+                        connectBtn.classList.add('cursor-not-allowed', 'opacity-50');
+                    }
+                    showMessage("MetaMask conectada con éxito.", 'success');
+                } catch (err) {
+                    showMessage("Error al conectar MetaMask.", 'error');
+                }
+            } else {
+                showMessage("MetaMask no está instalada. Instálala para continuar.", 'error');
+                window.open('https://metamask.io/download/', '_blank');
+            }
+        };
 
         window.onload = () => {
             initializeFirebase();
@@ -699,6 +728,12 @@
             const daoConnectBtn = document.getElementById('dao-connect-wallet-btn');
             if (daoConnectBtn) {
                 daoConnectBtn.addEventListener('click', window.connectPhantomWallet);
+            }
+
+            // Event listener for MetaMask connect button
+            const daoConnectMetaMaskBtn = document.getElementById('dao-connect-metamask-btn');
+            if (daoConnectMetaMaskBtn) {
+                daoConnectMetaMaskBtn.addEventListener('click', window.connectMetaMask);
             }
 
             document.getElementById('proposal-form')?.addEventListener('submit', handleProposalFormSubmit);
@@ -1053,9 +1088,14 @@
             <div class="bg-[#0b0c10] p-6 rounded-2xl glow-border mb-8">
                 <h2 id="dao-wallet-status-title" class="text-2xl font-bold text-white mb-4">Estado de la Billetera</h2>
                 <p id="dao-wallet-status" class="text-gray-500 mb-4">Conectando...</p>
-                <button id="dao-connect-wallet-btn" class="w-full bg-[#66fcf1] text-[#0b0c10] font-bold py-3 px-6 rounded-full text-lg hover:bg-[#45a29e] transition-colors">
-                    Conectar Billetera Solana
-                </button>
+                <div class="flex flex-col md:flex-row gap-4">
+                    <button id="dao-connect-wallet-btn" class="w-full bg-[#66fcf1] text-[#0b0c10] font-bold py-3 px-6 rounded-full text-lg hover:bg-[#45a29e] transition-colors">
+                        Conectar Billetera Solana
+                    </button>
+                    <button id="dao-connect-metamask-btn" class="w-full bg-yellow-400 text-[#0b0c10] font-bold py-3 px-6 rounded-full text-lg hover:bg-yellow-500 transition-colors flex items-center justify-center gap-2">
+                        <img src="https://raw.githubusercontent.com/MetaMask/brand-resources/master/SVG/metamask-fox.svg" alt="MetaMask" style="width:24px;height:24px;"> Conectar MetaMask
+                    </button>
+                </div>
             </div>
             <div class="mb-8">
                 <a href="#" class="inline-block bg-[#45a29e] text-white font-bold py-3 px-6 rounded-full text-lg hover:bg-[#66fcf1] hover:text-[#0b0c10] transition-colors" data-page-id="create-proposal" id="dao-btn-create-proposal">
