@@ -1,0 +1,1046 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title id="page-title">Solstice - Ecosistema DAO en Solana</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInWithCustomToken, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        setLogLevel('debug');
+
+        // Initializing global Firebase variables
+        let app;
+        let auth;
+        let db;
+        let userId;
+        let walletAddress = null; // Variable to store the wallet address
+
+        // Safely retrieve Firebase variables from the Canvas environment
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        const VOTE_GOAL = 50;
+        const tokenPriceSOL = 0.0001;
+
+        // Translations object for language switching
+        const translations = {
+            'es': {
+                'page-title': 'Solstice - Ecosistema DAO en Solana',
+                'nav-home': 'Inicio',
+                'nav-presale': 'Preventa',
+                'nav-whitepaper': 'Libro Blanco',
+                'nav-team': 'Equipo',
+                'nav-dao': 'DAO',
+                'hero-title': 'Construyendo el futuro de la gobernanza comunitaria en Solana',
+                'hero-subtitle': 'Solstice es la nueva generación de proyectos DeFi, empoderando a la comunidad con transparencia y control total sobre el ecosistema.',
+                'hero-btn-presale': 'Participa en la Preventa',
+                'hero-btn-whitepaper': 'Lee el Libro Blanco',
+                'features-title': 'Nuestras Características',
+                'feature1-title': 'Gobernanza DAO',
+                'feature1-text': 'La comunidad controla el futuro del proyecto a través de un modelo de gobernanza descentralizada.',
+                'feature2-title': 'Tokenomía Justa',
+                'feature2-text': 'Una distribución de tokens que recompensa la participación y promueve la sostenibilidad a largo plazo.',
+                'feature3-title': 'Transparencia Total',
+                'feature3-text': 'Cada decisión y transacción es visible en la blockchain, asegurando la máxima transparencia.',
+                'tokenomics-title': 'Tokenomía ($SOLS)',
+                'tokenomics-intro': 'El token $SOLS es el corazón del ecosistema Solstice. Su tokenomía está diseñada para incentivar la participación y garantizar un crecimiento saludable.',
+                'tokenomics-total-supply': 'Suministro Total: 1,000,000,000 $SOLS.',
+                'tokenomics-distribution': 'Distribución:',
+                'tokenomics-presale': 'Preventa (20%): Financiación inicial y marketing.',
+                'tokenomics-rewards': 'Recompensas de la Comunidad (30%): Fomenta el crecimiento y la lealtad.',
+                'tokenomics-treasury': 'Fondo de Tesorería de la DAO (40%): Para el desarrollo y sostenibilidad futura.',
+                'tokenomics-liquidity': 'Liquidez Inicial (10%): Asegura la estabilidad del mercado.',
+                'presale-page-title': 'Oficial $SOLS Preventa',
+                'presale-page-subtitle': 'Asegura tu participación en el futuro del ecosistema Solstice. ¡El tiempo es limitado!',
+                'presale-price-label': 'Precio por Token',
+                'presale-raised': '0 SOL Recaudado',
+                'presale-goal': '1,000,000 SOL Objetivo',
+                'presale-status-title': 'Próximamente disponible, esperando lanzamiento',
+                'presale-disclaimer': 'Al participar, aceptas los términos y condiciones de la preventa. Por favor, lee nuestro <a href="#" data-page-id="whitepaper" class="underline text-[#66fcf1] hover:text-[#45a29e]">Libro Blanco</a> para más detalles.',
+                'whitepaper-page-title': 'Libro Blanco de Solstice',
+                'whitepaper-page-subtitle': 'El documento fundamental que detalla la visión, la tecnología y el futuro de nuestro proyecto en la red de Solana.',
+                'whitepaper-toc-title': 'Índice',
+                'whitepaper-toc1': '1. Introducción: El Problema y Nuestra Solución',
+                'whitepaper-toc2': '2. Visión y Misión del Ecosistema',
+                'whitepaper-toc3': '3. Tecnología y Arquitectura de la Blockchain',
+                'whitepaper-toc4': '4. Tokenomía Detallada ($SOLS)',
+                'whitepaper-toc5': '5. Hoja de Ruta Completa y Futuros Hitos',
+                'whitepaper-toc6': '6. Mecanismos de Gobernanza Descentralizada',
+                'whitepaper-toc7': '7. Seguridad y Auditorías del Protocolo',
+                'whitepaper-toc8': '8. Conclusión: El Futuro de Solstice',
+                'whitepaper-intro-title': '1. Introducción: El Problema y Nuestra Solución',
+                'whitepaper-intro-text': 'La mayoría de los proyectos DeFi se enfrentan a problemas de centralización, falta de transparencia y una distribución de valor injusta. Solstice aborda estos desafíos aprovechando la infraestructura de alta velocidad de Solana para crear un ecosistema totalmente descentralizado...',
+                'vision-title': '2. Visión y Misión del Ecosistema',
+                'vision-text': 'Nuestra visión es que Solstice se convierta en la plataforma de lanzamiento de referencia para proyectos transparentes y orientados a la comunidad en la red de Solana...',
+                'tech-title': '3. Tecnología y Arquitectura de la Blockchain',
+                'tech-text': 'Solstice está construido sobre la blockchain de Solana, una de las redes más rápidas y de menor costo del sector...',
+                'tokenomics-details-title': '4. Tokenomía Detallada ($SOLS)',
+                'tokenomics-total-details': 'Suministro Total:',
+                'tokenomics-distribution-details': 'Distribución:',
+                'tokenomics-presale-details': 'Preventa (20%): Destinado a la financiación inicial del proyecto...',
+                'tokenomics-rewards-details': 'Recompensas de la Comunidad (30%): Fomenta el crecimiento y la lealtad...',
+                'tokenomics-treasury-details': 'Fondo de Tesorería de la DAO (40%): Controlado por la comunidad para financiar futuras iniciativas...',
+                'tokenomics-liquidity-details': 'Liquidez Inicial (10%): Para garantizar una liquidez robusta en los intercambios...',
+                'roadmap-title': '5. Hoja de Ruta Completa y Futuros Hitos',
+                'roadmap-q3-2024': 'Fase 1 (Q3 2024): Lanzamiento y Establecimiento...',
+                'roadmap-q4-2024': 'Fase 2 (Q4 2024): Expansión del Ecosistema...',
+                'roadmap-q1-2025': 'Fase 3 (Q1 2025): Madurez y Adopción...',
+                'governance-title': '6. Mecanismos de Gobernanza Descentralizada',
+                'governance-text': 'La gobernanza de Solstice se ejecutará a través de una DAO, empoderando a los titulares de $SOLS para tomar decisiones críticas...',
+                'security-title': '7. Seguridad y Auditorías del Protocolo',
+                'security-text': 'La seguridad es nuestra máxima prioridad. Todos los contratos inteligentes de Solstice serán sometidos a una auditoría...',
+                'conclusion-title': '8. Conclusión: El Futuro de Solstice',
+                'conclusion-text': 'Solstice representa un nuevo amanecer para las finanzas descentralizadas en Solana...',
+                'team-page-title': 'Conoce al Equipo',
+                'team-page-subtitle': 'Un grupo dedicado de visionarios y expertos que trabajan para construir un futuro descentralizado en Solana.',
+                'member1-name': 'PROXIMAMENTE',
+                'member1-role': 'PROXIMAMENTE',
+                'member1-bio': 'PROXIMAMENTE',
+                'member2-name': 'PROXIMAMENTE',
+                'member2-role': 'PROXIMAMENTE',
+                'member2-bio': 'PROXIMAMENTE',
+                'member3-name': 'PROXIMAMENTE',
+                'member3-role': 'PROXIMAMENTE',
+                'member3-bio': 'PROXIMAMENTE',
+                'member4-name': 'PROXIMAMENTE',
+                'member4-role': 'PROXIMAMENTE',
+                'member4-bio': 'PROXIMAMENTE',
+                'dao-page-title': 'Panel de Control de la DAO',
+                'dao-page-subtitle': 'Participa en la toma de decisiones y vota en las propuestas que darán forma al futuro de Solstice.',
+                'dao-wallet-status-title': 'Estado de la Billetera',
+                'dao-wallet-status-connecting': 'Conectando...',
+                'dao-btn-connect-wallet': 'Conectar Billetera Solana',
+                'dao-btn-create-proposal': 'Crear Nueva Propuesta',
+                'dao-active-proposals-title': 'Propuestas Activas',
+                'dao-loading-proposals': 'Cargando propuestas...',
+                'proposal-form-page-title': 'Crear Nueva Propuesta',
+                'proposal-form-page-subtitle': 'Presenta una idea para la comunidad. Si es aprobada, será implementada.',
+                'proposal-form-title-label': 'Título de la Propuesta',
+                'proposal-form-desc-label': 'Descripción Completa',
+                'proposal-form-btn-submit': 'Enviar Propuesta',
+                'footer-text': '&copy; 2024 Solstice. Todos los derechos reservados.',
+                'language-selector': 'Idioma:',
+                'proposal-form-placeholder-title': 'Título de la Propuesta',
+                'proposal-form-placeholder-desc': 'Descripción Completa',
+                'proposal-status': 'Estado:',
+                'proposal-status-active': 'Activa',
+                'proposal-status-voted': '¡Votado!',
+                'proposal-votes': 'Votos:',
+                'dao-no-proposals': 'No hay propuestas activas en este momento.',
+                'wallet-connected': 'Billetera Conectada:',
+                'wallet-connect-success': 'Billetera conectada con éxito.',
+                'connect-rejected': 'Conexión de billetera rechazada.',
+                'error-connect': 'Error al conectar la billetera.',
+                'phantom-not-found': '¡Phantom Wallet no encontrada! Por favor, instálala para continuar.',
+                'proposal-creation-success': '¡Propuesta creada con éxito!',
+                'error-proposal-creation': 'Error al crear la propuesta:',
+                'title-desc-empty': 'El título y la descripción no pueden estar vacíos.',
+                'firestore-not-init': 'Error: Firestore no está inicializado.',
+                'error-firestore-listener': 'Error al cargar las propuestas.',
+                'error-firebase-init': 'Error al conectar con el servicio:',
+                'connected': 'Conectada',
+            },
+            'en': {
+                'page-title': 'Solstice - DAO Ecosystem on Solana',
+                'nav-home': 'Home',
+                'nav-presale': 'Presale',
+                'nav-whitepaper': 'Whitepaper',
+                'nav-team': 'Team',
+                'nav-dao': 'DAO',
+                'hero-title': 'Building the future of community governance on Solana',
+                'hero-subtitle': 'Solstice is the next generation of DeFi projects, empowering the community with transparency and full control over the ecosystem.',
+                'hero-btn-presale': 'Join the Presale',
+                'hero-btn-whitepaper': 'Read the Whitepaper',
+                'features-title': 'Our Features',
+                'feature1-title': 'DAO Governance',
+                'feature1-text': 'The community controls the future of the project through a decentralized governance model.',
+                'feature2-title': 'Fair Tokenomics',
+                'feature2-text': 'A token distribution that rewards participation and promotes long-term sustainability.',
+                'feature3-title': 'Total Transparency',
+                'feature3-text': 'Every decision and transaction is visible on the blockchain, ensuring maximum transparency.',
+                'tokenomics-title': 'Tokenomics ($SOLS)',
+                'tokenomics-intro': 'The $SOLS token is the heart of the Solstice ecosystem. Its tokenomics are designed to incentivize participation and ensure healthy growth.',
+                'tokenomics-total-supply': 'Total Supply: 1,000,000,000 $SOLS.',
+                'tokenomics-distribution': 'Distribution:',
+                'tokenomics-presale': 'Presale (20%): Initial funding and marketing.',
+                'tokenomics-rewards': 'Community Rewards (30%): Fosters growth and loyalty.',
+                'tokenomics-treasury': 'DAO Treasury Fund (40%): For future development and sustainability.',
+                'tokenomics-liquidity': 'Initial Liquidity (10%): Ensures market stability.',
+                'presale-page-title': 'Official $SOLS Presale',
+                'presale-page-subtitle': 'Secure your stake in the future of the Solstice ecosystem. Time is limited!',
+                'presale-price-label': 'Price per Token',
+                'presale-raised': '0 SOL Raised',
+                'presale-goal': '1,000,000 SOL Goal',
+                'presale-status-title': 'Coming soon, awaiting launch',
+                'presale-disclaimer': 'By participating, you agree to the terms and conditions of the presale. Please read our <a href="#" data-page-id="whitepaper" class="underline text-[#66fcf1] hover:text-[#45a29e]">Whitepaper</a> for more details.',
+                'whitepaper-page-title': 'Solstice Whitepaper',
+                'whitepaper-page-subtitle': 'The foundational document detailing the vision, technology, and future of our project on the Solana network.',
+                'whitepaper-toc-title': 'Table of Contents',
+                'whitepaper-toc1': '1. Introduction: The Problem and Our Solution',
+                'whitepaper-toc2': '2. Vision and Ecosystem Mission',
+                'whitepaper-toc3': '3. Blockchain Technology and Architecture',
+                'whitepaper-toc4': '4. Detailed Tokenomics ($SOLS)',
+                'whitepaper-toc5': '5. Complete Roadmap and Future Milestones',
+                'whitepaper-toc6': '6. Decentralized Governance Mechanisms',
+                'whitepaper-toc7': '7. Security and Protocol Audits',
+                'whitepaper-toc8': '8. Conclusion: The Future of Solstice',
+                'whitepaper-intro-title': '1. Introduction: The Problem and Our Solution',
+                'whitepaper-intro-text': 'Most DeFi projects face issues of centralization, lack of transparency, and unfair value distribution. Solstice addresses these challenges by leveraging Solana\'s high-speed infrastructure to create a fully decentralized ecosystem...',
+                'vision-title': '2. Vision and Ecosystem Mission',
+                'vision-text': 'Our vision is for Solstice to become the reference launchpad for transparent, community-driven projects on the Solana network...',
+                'tech-title': '3. Blockchain Technology and Architecture',
+                'tech-text': 'Solstice is built on the Solana blockchain, one of the fastest and lowest-cost networks in the industry...',
+                'tokenomics-details-title': '4. Detailed Tokenomics ($SOLS)',
+                'tokenomics-total-details': 'Total Supply:',
+                'tokenomics-distribution-details': 'Distribution:',
+                'tokenomics-presale-details': 'Presale (20%): Allocated for initial project funding...',
+                'tokenomics-rewards-details': 'Community Rewards (30%): Fosters growth and loyalty...',
+                'tokenomics-treasury-details': 'DAO Treasury Fund (40%): Controlled by the community to finance future initiatives...',
+                'tokenomics-liquidity-details': 'Initial Liquidity (10%): To ensure robust liquidity on exchanges...',
+                'roadmap-title': '5. Complete Roadmap and Future Milestones',
+                'roadmap-q3-2024': 'Phase 1 (Q3 2024): Launch and Establishment...',
+                'roadmap-q4-2024': 'Phase 2 (Q4 2024): Ecosystem Expansion...',
+                'roadmap-q1-2025': 'Phase 3 (Q1 2025): Maturity and Adoption...',
+                'governance-title': '6. Decentralized Governance Mechanisms',
+                'governance-text': 'Solstice governance will be executed through a DAO, empowering $SOLS holders to make critical decisions...',
+                'security-title': '7. Security and Protocol Audits',
+                'security-text': 'Security is our top priority. All Solstice smart contracts will undergo an audit...',
+                'conclusion-title': '8. Conclusion: The Future of Solstice',
+                'conclusion-text': 'Solstice represents a new dawn for decentralized finance on Solana...',
+                'team-page-title': 'Meet the Team',
+                'team-page-subtitle': 'A dedicated group of visionaries and experts working to build a decentralized future on Solana.',
+                'member1-name': 'COMING SOON',
+                'member1-role': 'COMING SOON',
+                'member1-bio': 'COMING SOON',
+                'member2-name': 'COMING SOON',
+                'member2-role': 'COMING SOON',
+                'member2-bio': 'COMING SOON',
+                'member3-name': 'COMING SOON',
+                'member3-role': 'COMING SOON',
+                'member3-bio': 'COMING SOON',
+                'member4-name': 'COMING SOON',
+                'member4-role': 'COMING SOON',
+                'member4-bio': 'COMING SOON',
+                'dao-page-title': 'DAO Dashboard',
+                'dao-page-subtitle': 'Participate in decision-making and vote on proposals that will shape the future of Solstice.',
+                'dao-wallet-status-title': 'Wallet Status',
+                'dao-wallet-status-connecting': 'Connecting...',
+                'dao-btn-connect-wallet': 'Connect Solana Wallet',
+                'dao-btn-create-proposal': 'Create New Proposal',
+                'dao-active-proposals-title': 'Active Proposals',
+                'dao-loading-proposals': 'Loading proposals...',
+                'proposal-form-page-title': 'Create New Proposal',
+                'proposal-form-page-subtitle': 'Submit an idea for the community. If approved, it will be implemented.',
+                'proposal-form-title-label': 'Proposal Title',
+                'proposal-form-desc-label': 'Full Description',
+                'proposal-form-btn-submit': 'Submit Proposal',
+                'footer-text': '&copy; 2024 Solstice. All rights reserved.',
+                'language-selector': 'Language:',
+                'proposal-form-placeholder-title': 'Proposal Title',
+                'proposal-form-placeholder-desc': 'Full Description',
+                'proposal-status': 'Status:',
+                'proposal-status-active': 'Active',
+                'proposal-status-voted': 'Voted!',
+                'proposal-votes': 'Votes:',
+                'dao-no-proposals': 'No active proposals at this time.',
+                'wallet-connected': 'Wallet Connected:',
+                'wallet-connect-success': 'Wallet connected successfully.',
+                'connect-rejected': 'Wallet connection rejected.',
+                'error-connect': 'Error connecting wallet.',
+                'phantom-not-found': 'Phantom Wallet not found! Please install it to continue.',
+                'proposal-creation-success': 'Proposal created successfully!',
+                'error-proposal-creation': 'Error creating proposal:',
+                'title-desc-empty': 'Title and description cannot be empty.',
+                'firestore-not-init': 'Error: Firestore is not initialized.',
+                'error-firestore-listener': 'Error loading proposals.',
+                'error-firebase-init': 'Error connecting to the service:',
+                'connected': 'Connected',
+            },
+            'zh': {
+                'page-title': 'Solstice - Solana上的DAO生态系统',
+                'nav-home': '主页',
+                'nav-presale': '预售',
+                'nav-whitepaper': '白皮书',
+                'nav-team': '团队',
+                'nav-dao': 'DAO',
+                'hero-title': '在Solana上构建社区治理的未来',
+                'hero-subtitle': 'Solstice是下一代DeFi项目，通过透明度和对生态系统的完全控制来赋能社区。',
+                'hero-btn-presale': '加入预售',
+                'hero-btn-whitepaper': '阅读白皮书',
+                'features-title': '我们的特点',
+                'feature1-title': 'DAO治理',
+                'feature1-text': '社区通过去中心化治理模式控制项目的未来。',
+                'feature2-title': '公平代币经济',
+                'feature2-text': '一种奖励参与并促进长期可持续性的代币分配。',
+                'feature3-title': '完全透明',
+                'feature3-text': '每个决策和交易都在区块链上可见，确保最大程度的透明度。',
+                'tokenomics-title': '代币经济学 ($SOLS)',
+                'tokenomics-intro': '$SOLS 代币是 Solstice 生态系统的核心。其代币经济学旨在激励参与并确保健康成长。',
+                'tokenomics-total-supply': '总供应量：1,000,000,000 $SOLS。',
+                'tokenomics-distribution': '分配：',
+                'tokenomics-presale': '预售 (20%)：初始资金和营销。',
+                'tokenomics-rewards': '社区奖励 (30%)：促进成长和忠诚度。',
+                'tokenomics-treasury': 'DAO 财政基金 (40%)：用于未来发展和可持续性。',
+                'tokenomics-liquidity': '初始流动性 (10%)：确保市场稳定。',
+                'presale-page-title': '官方 $SOLS 预售',
+                'presale-page-subtitle': '确保您在 Solstice 生态系统未来中的份额。时间有限！',
+                'presale-price-label': '代币价格',
+                'presale-raised': '已募资 0 SOL',
+                'presale-goal': '目标 1,000,000 SOL',
+                'presale-status-title': '即将推出，敬请期待',
+                'presale-disclaimer': '通过参与，您同意预售条款和条件。请阅读我们的<a href="#" data-page-id="whitepaper" class="underline text-[#66fcf1] hover:text-[#45a29e]">白皮书</a>以获取更多详细信息。',
+                'whitepaper-page-title': 'Solstice 白皮书',
+                'whitepaper-page-subtitle': '详细介绍我们在 Solana 网络上的项目愿景、技术和未来的基础文件。',
+                'whitepaper-toc-title': '目录',
+                'whitepaper-toc1': '1. 引言：问题与我们的解决方案',
+                'whitepaper-toc2': '2. 生态系统愿景与使命',
+                'whitepaper-toc3': '3. 区块链技术与架构',
+                'whitepaper-toc4': '4. 详细代币经济学 ($SOLS)',
+                'whitepaper-toc5': '5. 完整路线图与未来里程碑',
+                'whitepaper-toc6': '6. 去中心化治理机制',
+                'whitepaper-toc7': '7. 安全与协议审计',
+                'whitepaper-toc8': '8. 结论：Solstice 的未来',
+                'whitepaper-intro-title': '1. 引言：问题与我们的解决方案',
+                'whitepaper-intro-text': '大多数DeFi项目都面临中心化、缺乏透明度和不公平价值分配的问题。Solstice通过利用Solana的高速基础设施来解决这些挑战，创建一个完全去中心化的生态系统...',
+                'vision-title': '2. 生态系统愿景与使命',
+                'vision-text': '我们的愿景是让 Solstice 成为 Solana 网络上透明、社区驱动项目的参考启动平台...',
+                'tech-title': '3. 区块链技术与架构',
+                'tech-text': 'Solstice 建立在 Solana 区块链之上，这是业界最快、成本最低的网络之一...',
+                'tokenomics-details-title': '4. 详细代币经济学 ($SOLS)',
+                'tokenomics-total-details': '总供应量：',
+                'tokenomics-distribution-details': '分配：',
+                'tokenomics-presale-details': '预售 (20%)：用于项目初始资金...',
+                'tokenomics-rewards-details': '社区奖励 (30%)：促进成长和忠诚度...',
+                'tokenomics-treasury-details': 'DAO 财政基金 (40%)：由社区控制以资助未来的举措...',
+                'tokenomics-liquidity-details': '初始流动性 (10%)：以确保交易平台的稳健流动性...',
+                'roadmap-title': '5. 完整路线图与未来里程碑',
+                'roadmap-q3-2024': '第一阶段 (Q3 2024)：启动和建立...',
+                'roadmap-q4-2024': '第二阶段 (Q4 2024)：生态系统扩展...',
+                'roadmap-q1-2025': '第三阶段 (Q1 2025)：成熟和采用...',
+                'governance-title': '6. 去中心化治理机制',
+                'governance-text': 'Solstice 治理将通过 DAO 执行，赋能 $SOLS 持有者做出关键决策...',
+                'security-title': '7. 安全与协议审计',
+                'security-text': '安全是我们的首要任务。所有 Solstice 智能合约都将接受审计...',
+                'conclusion-title': '8. 结论：Solstice 的未来',
+                'conclusion-text': 'Solstice 代表着 Solana 上去中心化金融的新曙光...',
+                'team-page-title': '认识团队',
+                'team-page-subtitle': '一个由远见卓识者和专家组成的敬业团队，致力于在 Solana 上构建去中心化的未来。',
+                'member1-name': '即将到来',
+                'member1-role': '即将到来',
+                'member1-bio': '即将到来',
+                'member2-name': '即将到来',
+                'member2-role': '即将到来 (CTO)',
+                'member2-bio': '即将到来',
+                'member3-name': '即将到来',
+                'member3-role': '即将到来',
+                'member3-bio': '即将到来',
+                'member4-name': '即将到来',
+                'member4-role': '即将到来',
+                'member4-bio': '即将到来',
+                'dao-page-title': 'DAO 面板',
+                'dao-page-subtitle': '参与决策并对将塑造 Solstice 未来的提案进行投票。',
+                'dao-wallet-status-title': '钱包状态',
+                'dao-wallet-status-connecting': '连接中...',
+                'dao-btn-connect-wallet': '连接 Solana 钱包',
+                'dao-btn-create-proposal': '创建新提案',
+                'dao-active-proposals-title': '活跃提案',
+                'dao-loading-proposals': '正在加载提案...',
+                'proposal-form-page-title': '创建新提案',
+                'proposal-form-page-subtitle': '为社区提交一个想法。如果获得批准，它将被实施。',
+                'proposal-form-title-label': '提案标题',
+                'proposal-form-desc-label': '完整描述',
+                'proposal-form-btn-submit': '提交提案',
+                'footer-text': '© 2024 Solstice. 保留所有权利。',
+                'language-selector': '语言：',
+                'proposal-form-placeholder-title': '提案标题',
+                'proposal-form-placeholder-desc': '完整描述',
+                'proposal-status': '状态：',
+                'proposal-status-active': '活跃',
+                'proposal-status-voted': '已投票！',
+                'proposal-votes': '投票：',
+                'dao-no-proposals': '目前没有活跃的提案。',
+                'wallet-connected': '钱包已连接:',
+                'wallet-connect-success': '钱包连接成功。',
+                'connect-rejected': '钱包连接被拒绝。',
+                'error-connect': '连接钱包时出错。',
+                'phantom-not-found': '未找到 Phantom 钱包！请安装后再试。',
+                'proposal-creation-success': '提案创建成功！',
+                'error-proposal-creation': '创建提案时出错：',
+                'title-desc-empty': '标题和描述不能为空。',
+                'firestore-not-init': '错误：Firestore 未初始化。',
+                'error-firestore-listener': '加载提案时出错。',
+                'error-firebase-init': '连接服务时出错：',
+                'connected': '已连接',
+            }
+        };
+
+        const setLanguage = (lang) => {
+            const t = translations[lang];
+            if (!t) return;
+            
+            // Elements with IDs
+            const elementsToTranslate = [
+                'page-title', 'nav-home', 'nav-presale', 'nav-whitepaper', 'nav-team', 'nav-dao',
+                'hero-title', 'hero-subtitle', 'hero-btn-presale', 'hero-btn-whitepaper', 'features-title',
+                'feature1-title', 'feature1-text', 'feature2-title', 'feature2-text', 'feature3-title', 'feature3-text',
+                'tokenomics-title', 'tokenomics-intro', 'tokenomics-total-supply', 'tokenomics-distribution',
+                'tokenomics-presale', 'tokenomics-rewards', 'tokenomics-treasury', 'tokenomics-liquidity',
+                'presale-page-title', 'presale-page-subtitle', 'presale-price-label', 'presale-raised', 'presale-goal',
+                'presale-status-title', 'whitepaper-page-title', 'whitepaper-page-subtitle', 'whitepaper-toc-title',
+                'whitepaper-toc1', 'whitepaper-toc2', 'whitepaper-toc3', 'whitepaper-toc4', 'whitepaper-toc5',
+                'whitepaper-toc6', 'whitepaper-toc7', 'whitepaper-toc8', 'whitepaper-intro-title', 'whitepaper-intro-text',
+                'vision-title', 'vision-text', 'tech-title', 'tech-text', 'tokenomics-details-title', 'tokenomics-total-details', 'tokenomics-distribution-details', 'tokenomics-presale-details', 'tokenomics-rewards-details', 'tokenomics-treasury-details', 'tokenomics-liquidity-details', 'roadmap-title', 'roadmap-q3-2024', 'roadmap-q4-2024', 'roadmap-q1-2025', 'governance-title', 'governance-text', 'security-title', 'security-text', 'conclusion-title', 'conclusion-text',
+                'team-page-title', 'team-page-subtitle', 'member1-name', 'member1-role', 'member1-bio', 'member2-name', 'member2-role', 'member2-bio', 'member3-name', 'member3-role', 'member3-bio', 'member4-name', 'member4-role', 'member4-bio',
+                'dao-page-title', 'dao-page-subtitle', 'dao-wallet-status-title', 'dao-wallet-status-connecting',
+                'dao-btn-connect-wallet', 'dao-btn-create-proposal', 'dao-active-proposals-title',
+                'dao-loading-proposals', 'proposal-form-page-title', 'proposal-form-page-subtitle', 'proposal-form-title-label',
+                'proposal-form-desc-label', 'proposal-form-btn-submit', 'footer-text', 'language-selector'
+            ];
+
+            elementsToTranslate.forEach(id => {
+                const element = document.getElementById(id);
+                if (element) {
+                    if (id === 'presale-disclaimer' || id === 'footer-text') {
+                        element.innerHTML = t[id];
+                    } else {
+                        element.textContent = t[id];
+                    }
+                }
+            });
+
+            // Specific placeholder and button updates
+            const proposalTitleInput = document.getElementById('proposal-title');
+            if (proposalTitleInput) {
+                proposalTitleInput.setAttribute('placeholder', t['proposal-form-placeholder-title']);
+            }
+            const proposalDescriptionInput = document.getElementById('proposal-description');
+            if (proposalDescriptionInput) {
+                proposalDescriptionInput.setAttribute('placeholder', t['proposal-form-placeholder-desc']);
+            }
+            const connectWalletBtn = document.getElementById('dao-connect-wallet-btn');
+            if (connectWalletBtn && walletAddress) {
+                 connectWalletBtn.textContent = t['connected'];
+            }
+            if (connectWalletBtn && !walletAddress) {
+                connectWalletBtn.textContent = t['dao-btn-connect-wallet'];
+            }
+            
+            // Handle special cases
+            const presaleDisclaimerEl = document.getElementById('presale-disclaimer');
+            if (presaleDisclaimerEl) {
+                presaleDisclaimerEl.innerHTML = t['presale-disclaimer'];
+            }
+        };
+
+        const showPage = (pageId) => {
+            document.querySelectorAll('.page-section').forEach(section => {
+                section.classList.add('hidden');
+            });
+            document.getElementById(pageId).classList.remove('hidden');
+            window.scrollTo(0, 0);
+
+            if (pageId === 'presale') {
+                updateTokenPrice();
+            }
+            if (pageId === 'dao-dashboard') {
+                updateWalletStatus();
+            }
+        };
+
+        const updateWalletStatus = () => {
+            const walletStatusEl = document.getElementById('dao-wallet-status');
+            const connectWalletBtn = document.getElementById('dao-connect-wallet-btn');
+            const currentLang = document.documentElement.lang;
+
+            if (walletAddress && walletStatusEl && connectWalletBtn) {
+                const truncatedAddress = `${walletAddress.substring(0, 4)}...${walletAddress.substring(walletAddress.length - 4)}`;
+                walletStatusEl.textContent = `${translations[currentLang]['wallet-connected']} ${truncatedAddress}`;
+                walletStatusEl.classList.remove('text-gray-500');
+                walletStatusEl.classList.add('text-[#66fcf1]');
+                connectWalletBtn.textContent = translations[currentLang]['connected'];
+                connectWalletBtn.disabled = true;
+                connectWalletBtn.classList.remove('hover:bg-[#45a29e]');
+                connectWalletBtn.classList.add('cursor-not-allowed', 'opacity-50');
+            } else if (walletStatusEl && connectWalletBtn) {
+                walletStatusEl.textContent = translations[currentLang]['dao-wallet-status-connecting'];
+                connectWalletBtn.textContent = translations[currentLang]['dao-btn-connect-wallet'];
+                connectWalletBtn.disabled = false;
+                connectWalletBtn.classList.add('hover:bg-[#45a29e]');
+                connectWalletBtn.classList.remove('cursor-not-allowed', 'opacity-50');
+            }
+        };
+
+        const updateTokenPrice = () => {
+            const priceEl = document.getElementById('token-price');
+            if (priceEl) {
+                priceEl.textContent = `${tokenPriceSOL} SOL`;
+            }
+        };
+
+        const initializeFirebase = async () => {
+            try {
+                console.log("Initializing Firebase...");
+                app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+                
+                userId = auth.currentUser?.uid || crypto.randomUUID();
+                console.log("Firebase initialized successfully. User ID:", userId);
+
+                startDataListeners();
+                updateWalletStatus();
+
+            } catch (error) {
+                console.error("Error initializing Firebase:", error);
+                showMessage(`${translations[document.documentElement.lang]['error-firebase-init']} ${error.message}`, 'error');
+            }
+        };
+
+        const startDataListeners = () => {
+            if (!db) {
+                console.error("Firestore is not initialized.");
+                return;
+            }
+            try {
+                const proposalsCollectionPath = `/artifacts/${appId}/public/data/proposals`;
+                const q = collection(db, proposalsCollectionPath);
+
+                onSnapshot(q, (snapshot) => {
+                    const proposals = [];
+                    snapshot.forEach((doc) => {
+                        proposals.push({ id: doc.id, ...doc.data() });
+                    });
+                    console.log("Proposals fetched from Firestore:", proposals);
+                    renderProposals(proposals);
+                }, (error) => {
+                    console.error("Error listening to Firestore data:", error);
+                    showMessage(translations[document.documentElement.lang]['error-firestore-listener'], 'error');
+                });
+            } catch (error) {
+                console.error("Error setting up data listener:", error);
+            }
+        };
+
+        const renderProposals = (proposals) => {
+            const proposalsList = document.getElementById('proposals-list');
+            if (!proposalsList) return;
+            
+            proposalsList.innerHTML = '';
+            const currentLang = document.documentElement.lang;
+            if (proposals.length === 0) {
+                proposalsList.innerHTML = `<p class="text-gray-500">${translations[currentLang]['dao-no-proposals']}</p>`;
+                return;
+            }
+
+            proposals.forEach(proposal => {
+                const voteCount = Object.keys(proposal.votes || {}).length;
+                const userVoted = proposal.votes && proposal.votes[userId];
+                const votePercentage = Math.min(100, (voteCount / VOTE_GOAL) * 100).toFixed(0);
+                
+                const proposalEl = document.createElement('div');
+                proposalEl.className = "block bg-[#0b0c10] p-6 rounded-2xl border border-[#45a29e] mb-4 hover:shadow-xl transition-shadow cursor-pointer";
+                proposalEl.innerHTML = `
+                    <div class="flex justify-between items-center mb-2">
+                        <h3 class="text-2xl font-bold text-white">${proposal.title}</h3>
+                        ${userVoted ? `<span class="text-xs font-bold text-green-400 bg-[#1f2023] px-3 py-1 rounded-full">${translations[currentLang]['proposal-status-voted']}</span>` : ''}
+                    </div>
+                    <p class="text-gray-400 mb-4 truncate">${proposal.description}</p>
+                    <div class="flex justify-between items-center text-sm text-gray-500 mb-2">
+                        <span>${translations[currentLang]['proposal-status']} <span class="text-green-400">${translations[currentLang]['proposal-status-active']}</span></span>
+                        <span>${translations[currentLang]['proposal-votes']} <span class="text-[#66fcf1] font-bold">${voteCount}</span> de ${VOTE_GOAL}</span>
+                    </div>
+                    <div class="w-full h-2 bg-[#2c2f33] rounded-full overflow-hidden">
+                        <div class="h-full bg-[#66fcf1] transition-all duration-500 ease-out" style="width: ${votePercentage}%"></div>
+                    </div>
+                `;
+                proposalsList.appendChild(proposalEl);
+            });
+        };
+
+        const handleProposalFormSubmit = async (event) => {
+            event.preventDefault();
+            const proposalForm = document.getElementById('proposal-form');
+            const title = document.getElementById('proposal-title').value.trim();
+            const description = document.getElementById('proposal-description').value.trim();
+            const currentLang = document.documentElement.lang;
+            
+            if (!title || !description) {
+                showMessage(translations[currentLang]['title-desc-empty'], 'error');
+                return;
+            }
+
+            if (!db) {
+                showMessage(translations[currentLang]['firestore-not-init'], 'error');
+                return;
+            }
+
+            const proposalsCollectionPath = `/artifacts/${appId}/public/data/proposals`;
+
+            try {
+                const docRef = await addDoc(collection(db, proposalsCollectionPath), {
+                    title: title,
+                    description: description,
+                    proposerId: userId,
+                    status: "Activa",
+                    createdAt: new Date().toISOString(),
+                    votes: {}
+                });
+                
+                console.log("Propuesta creada con ID:", docRef.id);
+                showMessage(translations[currentLang]['proposal-creation-success'], 'success');
+                proposalForm.reset();
+                showPage('dao-dashboard');
+            } catch (error) {
+                console.error("Error al crear la propuesta:", error);
+                showMessage(`${translations[currentLang]['error-proposal-creation']} ${error.message}`, 'error');
+            }
+        };
+
+        const showMessage = (message, type) => {
+            const messageBox = document.getElementById('global-message-box');
+            messageBox.textContent = message;
+            messageBox.classList.remove('hidden');
+            if (type === 'success') {
+                messageBox.classList.remove('bg-red-500');
+                messageBox.classList.add('bg-green-600');
+            } else {
+                messageBox.classList.remove('bg-green-600');
+                messageBox.classList.add('bg-red-500');
+            }
+            setTimeout(() => {
+                messageBox.classList.add('hidden');
+            }, 5000);
+        };
+        
+        window.connectPhantomWallet = async () => {
+            const walletStatusEl = document.getElementById('dao-wallet-status');
+            const connectBtn = document.getElementById('dao-connect-wallet-btn');
+            const currentLang = document.documentElement.lang;
+
+            if ("solana" in window) {
+                try {
+                    const resp = await window.solana.connect();
+                    walletAddress = resp.publicKey.toString();
+                    console.log("Billetera Phantom conectada:", walletAddress);
+                    
+                    const truncatedAddress = `${walletAddress.substring(0, 4)}...${walletAddress.substring(walletAddress.length - 4)}`;
+                    if(walletStatusEl) {
+                        walletStatusEl.textContent = `${translations[currentLang]['wallet-connected']} ${truncatedAddress}`;
+                        walletStatusEl.classList.remove('text-gray-500');
+                        walletStatusEl.classList.add('text-[#66fcf1]');
+                    }
+                    
+                    if(connectBtn) {
+                        connectBtn.textContent = translations[currentLang]['connected'];
+                        connectBtn.disabled = true;
+                        connectBtn.classList.remove('hover:bg-[#45a29e]');
+                        connectBtn.classList.add('cursor-not-allowed', 'opacity-50');
+                    }
+                    
+                    showMessage(translations[currentLang]['wallet-connect-success'], 'success');
+                    
+                } catch (err) {
+                    console.error("Error al conectar la billetera:", err);
+                    if (err.code === 4001) {
+                        showMessage(translations[currentLang]['connect-rejected'], 'error');
+                    } else {
+                        showMessage(translations[currentLang]['error-connect'], 'error');
+                    }
+                }
+            } else {
+                showMessage(translations[currentLang]['phantom-not-found'], 'error');
+                console.log("Phantom no está instalado. Redirigiendo a la página de descarga.");
+                window.open('https://phantom.app/', '_blank');
+            }
+        };
+
+
+        window.onload = () => {
+            initializeFirebase();
+            showPage('home');
+            setLanguage('es'); // Set default language to Spanish
+
+            document.querySelectorAll('a[data-page-id]').forEach(link => {
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    showPage(e.target.dataset.pageId);
+                });
+            });
+
+            document.querySelectorAll('.lang-flag').forEach(flag => {
+                flag.addEventListener('click', (e) => {
+                    const lang = e.target.dataset.lang;
+                    setLanguage(lang);
+                    document.documentElement.lang = lang;
+                    // Re-render proposals to apply new language
+                    const loadingText = document.getElementById('dao-loading-proposals');
+                    if(loadingText) {
+                       loadingText.textContent = translations[lang]['dao-loading-proposals'];
+                    }
+                });
+            });
+            
+            // Event listener for DAO connect button
+            const daoConnectBtn = document.getElementById('dao-connect-wallet-btn');
+            if (daoConnectBtn) {
+                daoConnectBtn.addEventListener('click', window.connectPhantomWallet);
+            }
+
+            document.getElementById('proposal-form')?.addEventListener('submit', handleProposalFormSubmit);
+        };
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0b0c10;
+            color: #c5c6c7;
+            line-height: 1.8;
+        }
+        .container {
+            max-width: 900px;
+        }
+        .gradient-text {
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-weight: 700;
+        }
+        .glow-border {
+            border: 1px solid #45a29e;
+            box-shadow: 0 0 10px rgba(102, 252, 241, 0.2);
+        }
+        .section-separator {
+            width: 80px;
+            height: 4px;
+            background-color: #66fcf1;
+            margin: 0 auto 2rem auto;
+            border-radius: 9999px;
+        }
+        .lang-flag {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 0 5px rgba(255, 255, 255, 0.3);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .lang-flag:hover {
+            transform: scale(1.1);
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+        }
+    </style>
+</head>
+<body class="flex flex-col items-center p-4">
+
+    <!-- Global Message Box -->
+    <div id="global-message-box" class="fixed top-4 left-1/2 -translate-x-1/2 z-50 p-4 rounded-lg text-white shadow-lg hidden"></div>
+
+    <!-- Header Section -->
+    <header class="w-full container flex justify-between items-center py-6 px-4">
+        <div class="flex flex-col md:flex-row items-center space-y-2 md:space-y-0 md:space-x-4">
+            <img src="https://i.imgur.com/kOFEmHk.png" alt="Solstice Logo" class="w-12 h-12 rounded-full shadow-lg border-2 border-[#66fcf1]" onerror="this.onerror=null;this.src='https://placehold.co/48x48/FFFFFF/E0E0E0?text=Logo+no+encontrado';">
+            <span class="text-3xl font-bold gradient-text">Solstice</span>
+        </div>
+        <nav class="hidden md:flex space-x-6 text-gray-400 font-semibold items-center">
+            <a href="#" class="hover:text-white transition-colors" data-page-id="home" id="nav-home">Inicio</a>
+            <a href="#" class="hover:text-white transition-colors" data-page-id="presale" id="nav-presale">Preventa</a>
+            <a href="#" class="hover:text-white transition-colors" data-page-id="whitepaper" id="nav-whitepaper">Libro Blanco</a>
+            <a href="#" class="hover:text-white transition-colors" data-page-id="team" id="nav-team">Equipo</a>
+            <a href="#" class="hover:text-white transition-colors" data-page-id="dao-dashboard" id="nav-dao">DAO</a>
+            <a href="https://twitter.com/SolsticeSo44175" target="_blank" rel="noopener noreferrer" class="ml-4 text-white hover:text-[#66fcf1] transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" class="w-6 h-6 fill-current">
+                    <path d="M389.2 48h70.6L305.6 224.2 487 464H345L233.7 318.9 100.4 464H29.5L181.4 275.9 10.7 48h145.4L256 182.7 389.2 48zM364.5 421.8h39.7L154.2 87.2H114.6l250 334.6z"/>
+                </svg>
+            </a>
+            <!-- Language Selector -->
+            <div class="flex items-center space-x-2 ml-6">
+                <p id="language-selector" class="text-white">Idioma:</p>
+                <img src="https://flagcdn.com/w320/us.png" alt="English" class="lang-flag" data-lang="en">
+                <img src="https://flagcdn.com/w320/es.png" alt="Español" class="lang-flag" data-lang="es">
+                <img src="https://flagcdn.com/w320/cn.png" alt="Chinese" class="lang-flag" data-lang="zh">
+            </div>
+        </nav>
+    </header>
+
+    <main class="container bg-[#1f2023] p-8 md:p-12 rounded-3xl shadow-lg border border-[#45a29e] text-center">
+
+        <!-- Home Section -->
+        <section id="home" class="page-section">
+            <h1 id="hero-title" class="text-5xl md:text-7xl font-extrabold gradient-text leading-tight">
+                Construyendo el futuro de la gobernanza comunitaria en Solana
+            </h1>
+            <p id="hero-subtitle" class="text-xl md:text-2xl text-gray-400 mt-4 max-w-3xl mx-auto">
+                Solstice es la nueva generación de proyectos DeFi, empoderando a la comunidad con transparencia y control total sobre el ecosistema.
+            </p>
+            <div class="mt-8 space-y-4 md:space-y-0 md:space-x-4 flex flex-col md:flex-row justify-center items-center">
+                <a href="#" class="bg-[#66fcf1] text-[#0b0c10] font-bold py-3 px-8 rounded-full shadow-lg hover:bg-[#45a29e] transition-colors text-lg" data-page-id="presale" id="hero-btn-presale">
+                    Participa en la Preventa
+                </a>
+                <a href="#" class="bg-transparent border-2 border-[#66fcf1] text-[#66fcf1] font-bold py-3 px-8 rounded-full hover:bg-[#66fcf1] hover:text-[#0b0c10] transition-colors text-lg" data-page-id="whitepaper" id="hero-btn-whitepaper">
+                    Lee el Libro Blanco
+                </a>
+            </div>
+            
+            <section class="mt-12 text-left">
+                <h2 id="features-title" class="text-4xl font-bold text-white text-center mb-8">Nuestras Características</h2>
+                <div class="grid md:grid-cols-3 gap-8">
+                    <div class="bg-[#1f2023] p-6 rounded-2xl border border-[#45a29e] hover:shadow-xl transition-shadow duration-300">
+                        <h3 id="feature1-title" class="text-2xl font-bold text-[#66fcf1] mb-2">Gobernanza DAO</h3>
+                        <p id="feature1-text" class="text-gray-400">
+                            La comunidad controla el futuro del proyecto a través de un modelo de gobernanza descentralizada.
+                        </p>
+                    </div>
+                    <div class="bg-[#1f2023] p-6 rounded-2xl border border-[#45a29e] hover:shadow-xl transition-shadow duration-300">
+                        <h3 id="feature2-title" class="text-2xl font-bold text-[#66fcf1] mb-2">Tokenomía Justa</h3>
+                        <p id="feature2-text" class="text-gray-400">
+                            Una distribución de tokens que recompensa la participación y promueve la sostenibilidad a largo plazo.
+                        </p>
+                    </div>
+                    <div class="bg-[#1f2023] p-6 rounded-2xl border border-[#45a29e] hover:shadow-xl transition-shadow duration-300">
+                        <h3 id="feature3-title" class="text-2xl font-bold text-[#66fcf1] mb-2">Transparencia Total</h3>
+                        <p id="feature3-text" class="text-gray-400">
+                            Cada decisión y transacción es visible en la blockchain, asegurando la máxima transparencia.
+                        </p>
+                    </div>
+                </div>
+            </section>
+            
+            <section class="mt-12 text-left">
+                <h2 id="tokenomics-title" class="text-4xl font-bold text-white text-center mb-8">Tokenomía ($SOLS)</h2>
+                <div class="bg-[#0b0c10] p-8 rounded-2xl border border-[#45a29e] flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0 md:space-x-8">
+                    <div class="flex-1">
+                        <p id="tokenomics-intro" class="text-gray-400 mb-4">
+                            El token $SOLS es el corazón del ecosistema Solstice. Su tokenomía está diseñada para incentivar la participación y garantizar un crecimiento saludable.
+                        </p>
+                        <ul class="list-disc list-inside text-gray-400 space-y-2">
+                            <li id="tokenomics-total-supply">Suministro Total: 1,000,000,000 $SOLS.</li>
+                            <li id="tokenomics-presale">Preventa (20%): Financiación inicial y marketing.</li>
+                            <li id="tokenomics-rewards">Recompensas de la Comunidad (30%): Fomenta el crecimiento y la lealtad.</li>
+                            <li id="tokenomics-treasury">Fondo de Tesorería de la DAO (40%): Para el desarrollo y sostenibilidad futura.</li>
+                            <li id="tokenomics-liquidity">Liquidez Inicial (10%): Asegura la estabilidad del mercado.</li>
+                        </ul>
+                    </div>
+                    <div class="flex-1 w-full flex justify-center items-center">
+                        <svg viewBox="0 0 100 100" class="w-48 h-48">
+                            <circle cx="50" cy="50" r="45" fill="#1f2023" stroke="#c5c6c7" stroke-width="2"></circle>
+                            <path d="M50 50 L50 5 A45 45 0 0 1 88.5 35.5 Z" fill="#764ba2"></path>
+                            <path d="M50 50 L88.5 35.5 A45 45 0 0 1 88.5 64.5 Z" fill="#667eea"></path>
+                            <path d="M50 50 L88.5 64.5 A45 45 0 0 1 11.5 64.5 Z" fill="#45a29e"></path>
+                            <path d="M50 50 L11.5 64.5 A45 45 0 0 1 50 5 Z" fill="#66fcf1"></path>
+                        </svg>
+                    </div>
+                </div>
+            </section>
+        </section>
+
+        <!-- Presale Section -->
+        <section id="presale" class="page-section hidden">
+            <h1 id="presale-page-title" class="text-4xl md:text-5xl font-bold gradient-text mb-4">Oficial $SOLS Preventa</h1>
+            <p id="presale-page-subtitle" class="text-gray-400 mb-8 text-lg">
+                Asegura tu participación en el futuro del ecosistema Solstice. ¡El tiempo es limitado!
+            </p>
+            <div class="bg-[#0b0c10] rounded-2xl p-6 glow-border mb-8">
+                <div class="flex justify-between items-center mb-4">
+                    <span id="presale-price-label" class="text-lg font-bold text-white">Precio por Token</span>
+                    <span id="token-price" class="text-xl md:text-2xl font-extrabold text-[#66fcf1]"></span>
+                </div>
+                <div class="w-full h-4 bg-[#2c2f33] rounded-full overflow-hidden mb-2">
+                    <div class="h-full bg-[#66fcf1]" style="width: 0%;"></div>
+                </div>
+                <div class="flex justify-between text-sm text-gray-400">
+                    <span id="presale-raised">0 SOL Recaudado</span>
+                    <span id="presale-goal">1,000,000 SOL Objetivo</span>
+                </div>
+            </div>
+            <div class="bg-[#0b0c10] rounded-2xl p-6 glow-border">
+                <h2 id="presale-status-title" class="text-2xl font-bold text-white mb-4">
+                    Próximamente disponible, esperando lanzamiento
+                </h2>
+            </div>
+            <p id="presale-disclaimer" class="mt-8 text-sm text-gray-500">
+                Al participar, aceptas los términos y condiciones de la preventa. Por favor, lee nuestro <a href="#" data-page-id="whitepaper" class="underline text-[#66fcf1] hover:text-[#45a29e]">Libro Blanco</a> para más detalles.
+            </p>
+        </section>
+
+        <!-- Whitepaper Section -->
+        <section id="whitepaper" class="page-section hidden">
+            <h1 id="whitepaper-page-title" class="text-4xl md:text-5xl font-bold gradient-text mb-4">Libro Blanco de Solstice</h1>
+            <p id="whitepaper-page-subtitle" class="text-lg md:text-xl text-gray-400 max-w-2xl mx-auto mb-8">
+                El documento fundamental que detalla la visión, la tecnología y el futuro de nuestro proyecto en la red de Solana.
+            </p>
+            <div class="bg-[#0b0c10] p-6 rounded-2xl glow-border mb-12 text-left">
+                <h2 id="whitepaper-toc-title" class="text-2xl font-bold text-[#66fcf1] mb-4">Índice</h2>
+                <ul class="list-disc list-inside space-y-2 text-gray-300">
+                    <li><a href="#introduccion" class="hover:underline" data-page-id="whitepaper" id="whitepaper-toc1">1. Introducción: El Problema y Nuestra Solución</a></li>
+                    <li><a href="#vision" class="hover:underline" data-page-id="whitepaper" id="whitepaper-toc2">2. Visión y Misión del Ecosistema</a></li>
+                    <li><a href="#tecnologia" class="hover:underline" data-page-id="whitepaper" id="whitepaper-toc3">3. Tecnología y Arquitectura de la Blockchain</a></li>
+                    <li><a href="#tokenomia" class="hover:underline" data-page-id="whitepaper" id="whitepaper-toc4">4. Tokenomía Detallada ($SOLS)</a></li>
+                    <li><a href="#roadmap-completo" class="hover:underline" data-page-id="whitepaper" id="whitepaper-toc5">5. Hoja de Ruta Completa y Futuros Hitos</a></li>
+                    <li><a href="#gobernanza" class="hover:underline" data-page-id="whitepaper" id="whitepaper-toc6">6. Mecanismos de Gobernanza Descentralizada</a></li>
+                    <li><a href="#seguridad" class="hover:underline" data-page-id="whitepaper" id="whitepaper-toc7">7. Seguridad y Auditorías del Protocolo</a></li>
+                    <li><a href="#conclusion" class="hover:underline" data-page-id="whitepaper" id="whitepaper-toc8">8. Conclusión: El Futuro de Solstice</a></li>
+                </ul>
+            </div>
+            <section id="introduccion" class="mb-12 text-left">
+                <h2 id="whitepaper-intro-title" class="text-3xl font-bold text-white mb-4">1. Introducción: El Problema y Nuestra Solución</h2>
+                <p id="whitepaper-intro-text" class="text-gray-300">La mayoría de los proyectos DeFi se enfrentan a problemas de centralización, falta de transparencia y una distribución de valor injusta. Solstice aborda estos desafíos aprovechando la infraestructura de alta velocidad de Solana para crear un ecosistema totalmente descentralizado...</p>
+            </section>
+            <section id="vision" class="mb-12 text-left">
+                <h2 class="text-3xl font-bold text-white mb-4" id="vision-title">2. Visión y Misión del Ecosistema</h2>
+                <p class="text-gray-300" id="vision-text">Nuestra visión es que Solstice se convierta en la plataforma de lanzamiento de referencia para proyectos transparentes y orientados a la comunidad en la red de Solana...</p>
+            </section>
+            <section id="tecnologia" class="mb-12 text-left">
+                <h2 class="text-3xl font-bold text-white mb-4" id="tech-title">3. Tecnología y Arquitectura de la Blockchain</h2>
+                <p class="text-gray-300" id="tech-text">Solstice está construido sobre la blockchain de Solana, una de las redes más rápidas y de menor costo del sector...</p>
+            </section>
+            <section id="tokenomia" class="mb-12 text-left">
+                <h2 class="text-3xl font-bold text-white mb-4" id="tokenomics-details-title">4. Tokenomía Detallada ($SOLS)</h2>
+                <p class="text-gray-300"><strong class="text-[#66fcf1]" id="tokenomics-total-details">Suministro Total:</strong> 1,000,000,000 $SOLS.</p>
+                <p class="text-gray-300"><strong class="text-[#66fcf1]" id="tokenomics-distribution-details">Distribución:</strong></p>
+                <ul class="list-disc list-inside space-y-2 text-gray-400 mt-4">
+                    <li id="tokenomics-presale-details"><strong>Preventa (20%):</strong> Destinado a la financiación inicial del proyecto...</li>
+                    <li id="tokenomics-rewards-details"><strong>Recompensas de la Comunidad (30%):</strong> Fomenta el crecimiento y la lealtad...</li>
+                    <li id="tokenomics-treasury-details"><strong>Fondo de Tesorería de la DAO (40%):</strong> Controlado por la comunidad para financiar futuras iniciativas...</li>
+                    <li id="tokenomics-liquidity-details"><strong>Liquidez Inicial (10%):</strong> Para garantizar una liquidez robusta en los intercambios...</li>
+                </ul>
+            </section>
+            <section id="roadmap-completo" class="mb-12 text-left">
+                <h2 class="text-3xl font-bold text-white mb-4" id="roadmap-title">5. Hoja de Ruta Completa y Futuros Hitos</h2>
+                <ul class="list-disc list-inside space-y-4 text-gray-400 mt-4">
+                    <li id="roadmap-q3-2024"><strong class="text-[#66fcf1]">Fase 1 (Q3 2024):</strong> Lanzamiento y Establecimiento...</li>
+                    <li id="roadmap-q4-2024"><strong class="text-[#66fcf1]">Fase 2 (Q4 2024):</strong> Expansión del Ecosistema...</li>
+                    <li id="roadmap-q1-2025"><strong class="text-[#66fcf1]">Fase 3 (Q1 2025):</strong> Madurez y Adopción...</li>
+                </ul>
+            </section>
+            <section id="gobernanza" class="mb-12 text-left">
+                <h2 class="text-3xl font-bold text-white mb-4" id="governance-title">6. Mecanismos de Gobernanza Descentralizada</h2>
+                <p class="text-gray-300" id="governance-text">La gobernanza de Solstice se ejecutará a través de una DAO, empoderando a los titulares de $SOLS para tomar decisiones críticas...</p>
+            </section>
+            <section id="seguridad" class="mb-12 text-left">
+                <h2 class="text-3xl font-bold text-white mb-4" id="security-title">7. Seguridad y Auditorías del Protocolo</h2>
+                <p class="text-gray-300" id="security-text">La seguridad es nuestra máxima prioridad. Todos los contratos inteligentes de Solstice serán sometidos a una auditoría...</p>
+            </section>
+            <section id="conclusion" class="mb-12 text-left">
+                <h2 class="text-3xl font-bold text-white mb-4" id="conclusion-title">8. Conclusión: El Futuro de Solstice</h2>
+                <p class="text-gray-300" id="conclusion-text">Solstice representa un nuevo amanecer para las finanzas descentralizadas en Solana...</p>
+            </section>
+        </section>
+
+       <!-- Team Section -->
+    <section id="team" class="page-section hidden">
+        <h1 id="team-page-title" class="text-5xl md:text-6xl font-extrabold gradient-text mb-4">Conoce al Equipo</h1>
+        <p id="team-page-subtitle" class="text-lg md:text-xl text-gray-400 max-w-3xl mx-auto mb-8">
+            Un grupo dedicado de visionarios y expertos que trabajan para construir un futuro descentralizado en Solana.
+        </p>
+        <div class="section-separator"></div>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-12 mt-12">
+            <div class="bg-[#1f2023] p-8 rounded-3xl glow-border flex flex-col items-center">
+                <img src="https://placehold.co/150x150/111827/45a29e?text=Foto" alt="Foto de Perfil" class="w-24 h-24 object-cover rounded-full border-2 border-[#66fcf1] mb-2">
+                <p class="text-gray-400 text-lg mb-4">proximamente</p>
+                <h3 class="text-2xl font-bold text-white mb-1" id="member1-name">PROXIMAMENTE</h3>
+                <p class="text-[#66fcf1] font-medium mb-4" id="member1-role">PROXIMAMENTE</p>
+                <p class="text-gray-400 text-sm" id="member1-bio">PROXIMAMENTE</p>
+            </div>
+            <div class="bg-[#1f2023] p-8 rounded-3xl glow-border flex flex-col items-center">
+                <img src="https://placehold.co/150x150/111827/45a29e?text=Foto" alt="Foto de Perfil" class="w-24 h-24 object-cover rounded-full border-2 border-[#66fcf1] mb-2">
+                <p class="text-gray-400 text-lg mb-4">proximamente</p>
+                <h3 class="text-2xl font-bold text-white mb-1" id="member2-name">PROXIMAMENTE</h3>
+                <p class="text-[#66fcf1] font-medium mb-4" id="member2-role">PROXIMAMENTE</p>
+                <p class="text-gray-400 text-sm" id="member2-bio">PROXIMAMENTE</p>
+            </div>
+            <div class="bg-[#1f2023] p-8 rounded-3xl glow-border flex flex-col items-center">
+                <img src="https://placehold.co/150x150/111827/45a29e?text=Foto" alt="Foto de Perfil" class="w-24 h-24 object-cover rounded-full border-2 border-[#66fcf1] mb-2">
+                <p class="text-gray-400 text-lg mb-4">proximamente</p>
+                <h3 class="text-2xl font-bold text-white mb-1" id="member3-name">PROXIMAMENTE</h3>
+                <p class="text-[#66fcf1] font-medium mb-4" id="member3-role">PROXIMAMENTE</p>
+                <p class="text-gray-400 text-sm" id="member3-bio">PROXIMAMENTE</p>
+            </div>
+            <div class="bg-[#1f2023] p-8 rounded-3xl glow-border flex flex-col items-center col-span-1 md:col-span-2 lg:col-span-3">
+                <img src="https://placehold.co/150x150/111827/45a29e?text=Foto" alt="Foto de Perfil" class="w-24 h-24 object-cover rounded-full border-2 border-[#66fcf1] mb-2">
+                <p class="text-gray-400 text-lg mb-4">proximamente</p>
+                <h3 class="text-2xl font-bold text-white mb-1" id="member4-name">PROXIMAMENTE</h3>
+                <p class="text-[#66fcf1] font-medium mb-4" id="member4-role">PROXIMAMENTE</p>
+                <p class="text-gray-400 text-sm" id="member4-bio">PROXIMAMENTE</p>
+            </div>
+        </div>
+    </section>
+
+        <!-- DAO Dashboard Section -->
+        <section id="dao-dashboard" class="page-section hidden">
+            <h1 id="dao-page-title" class="text-4xl md:text-5xl font-bold gradient-text mb-4">Panel de Control de la DAO</h1>
+            <p id="dao-page-subtitle" class="text-lg md:text-xl text-gray-400 max-w-2xl mx-auto mb-8">
+                Participa en la toma de decisiones y vota en las propuestas que darán forma al futuro de Solstice.
+            </p>
+            <div class="bg-[#0b0c10] p-6 rounded-2xl glow-border mb-8">
+                <h2 id="dao-wallet-status-title" class="text-2xl font-bold text-white mb-4">Estado de la Billetera</h2>
+                <p id="dao-wallet-status" class="text-gray-500 mb-4">Conectando...</p>
+                <button id="dao-connect-wallet-btn" class="w-full bg-[#66fcf1] text-[#0b0c10] font-bold py-3 px-6 rounded-full text-lg hover:bg-[#45a29e] transition-colors">
+                    Conectar Billetera Solana
+                </button>
+            </div>
+            <div class="mb-8">
+                <a href="#" class="inline-block bg-[#45a29e] text-white font-bold py-3 px-6 rounded-full text-lg hover:bg-[#66fcf1] hover:text-[#0b0c10] transition-colors" data-page-id="create-proposal" id="dao-btn-create-proposal">
+                    Crear Nueva Propuesta
+                </a>
+            </div>
+            <div class="bg-[#0b0c10] p-6 rounded-2xl glow-border">
+                <h2 id="dao-active-proposals-title" class="text-2xl font-bold text-white mb-4">Propuestas Activas</h2>
+                <div id="proposals-list" class="flex flex-col items-center">
+                    <div class="flex flex-col items-center text-gray-400">
+                        <svg class="w-10 h-10 animate-spin text-[#66fcf1]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span id="dao-loading-proposals" class="mt-2 text-sm">Cargando propuestas...</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Create Proposal Section -->
+        <section id="create-proposal" class="page-section hidden">
+            <h1 id="proposal-form-page-title" class="text-4xl md:text-5xl font-bold gradient-text mb-4">Crear Nueva Propuesta</h1>
+            <p id="proposal-form-page-subtitle" class="text-lg md:text-xl text-gray-400 max-w-2xl mx-auto mb-8">
+                Presenta una idea para la comunidad. Si es aprobada, será implementada.
+            </p>
+            <div class="bg-[#0b0c10] p-6 rounded-2xl glow-border">
+                <form id="proposal-form" class="space-y-6">
+                    <div>
+                        <label for="proposal-title" class="block text-left text-white font-bold mb-2" id="proposal-form-title-label">Título de la Propuesta</label>
+                        <input type="text" id="proposal-title" name="proposal-title" required class="w-full p-3 rounded-lg bg-[#2c2f33] text-white placeholder-gray-500 border border-[#45a29e] focus:outline-none focus:ring-2 focus:ring-[#66fcf1]" placeholder="Título de la Propuesta">
+                    </div>
+                    <div>
+                        <label for="proposal-description" class="block text-left text-white font-bold mb-2" id="proposal-form-desc-label">Descripción Completa</label>
+                        <textarea id="proposal-description" name="proposal-description" rows="6" required class="w-full p-3 rounded-lg bg-[#2c2f33] text-white placeholder-gray-500 border border-[#45a29e] focus:outline-none focus:ring-2 focus:ring-[#66fcf1]" placeholder="Descripción Completa"></textarea>
+                    </div>
+                    <button type="submit" class="w-full bg-[#66fcf1] text-[#0b0c10] font-bold py-3 px-6 rounded-full text-lg hover:bg-[#45a29e] transition-colors" id="proposal-form-btn-submit">
+                        Enviar Propuesta
+                    </button>
+                </form>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Page Footer -->
+    <footer class="w-full container text-center text-sm text-gray-500 py-6 border-t border-[#2c2f33] mt-12">
+        <p id="footer-text">&copy; 2024 Solstice. Todos los derechos reservados.</p>
+    </footer>
+
+</body>
+</html>
